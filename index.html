@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 Temperature Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #90caf9;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 40px;
+    }
+
+    /* Main menu buttons */
+    .menu {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .menu-btn {
+      background: #1e2130;
+      border: 2px solid #2a2f45;
+      color: #90caf9;
+      padding: 18px 40px;
+      font-size: 1.1rem;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 160px;
+    }
+
+    .menu-btn:hover  { background: #252840; border-color: #90caf9; }
+    .menu-btn.active { background: #1a3a5c; border-color: #42a5f5; color: #fff; }
+
+    /* Sensor panel */
+    .panel {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      background: #1e2130;
+      border: 1px solid #2a2f45;
+      border-radius: 16px;
+      padding: 40px 60px;
+      min-width: 320px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .panel.visible { display: flex; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .temp-value {
+      font-size: 5rem;
+      font-weight: 700;
+      color: #42a5f5;
+      line-height: 1;
+    }
+
+    .temp-unit {
+      font-size: 2rem;
+      color: #888;
+      margin-left: 4px;
+    }
+
+    .updated-at {
+      margin-top: 20px;
+      font-size: 0.78rem;
+      color: #555;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: #4caf50;
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.stale { background: #f44336; animation: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .back-btn {
+      margin-top: 30px;
+      background: transparent;
+      border: 1px solid #444;
+      color: #888;
+      padding: 8px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .back-btn:hover { border-color: #90caf9; color: #90caf9; }
+  </style>
+</head>
+<body>
+
+  <h1>⚙ ESP32 Temperature Monitor</h1>
+  <p class="subtitle">Real-time NTC sensor readings</p>
+
+  <!-- Main Menu -->
+  <div class="menu" id="mainMenu">
+    <button class="menu-btn" onclick="showSensor('t1', this)">🌡 Sensor 1 (T1)</button>
+    <button class="menu-btn" onclick="showSensor('t2', this)">🌡 Sensor 2 (T2)</button>
+  </div>
+
+  <!-- Sensor Panel -->
+  <div class="panel" id="sensorPanel">
+    <div class="panel-title" id="panelTitle">Sensor 1 (T1)</div>
+    <div>
+      <span class="temp-value" id="tempValue">--</span>
+      <span class="temp-unit">°C</span>
+    </div>
+    <div class="updated-at">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="updatedAt">Waiting for data...</span>
+    </div>
+    <button class="back-btn" onclick="goBack()">← Back to Menu</button>
+  </div>
+
+  <script>
+    // ── CHANGE THIS to your actual Render.com URL ──
+    const API_BASE = "https://ntc-backend.onrender.com";
+
+    let currentSensor = null;
+    let pollInterval  = null;
+
+    function showSensor(sensor, btn) {
+      // Highlight active button
+      document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      currentSensor = sensor;
+      document.getElementById("panelTitle").textContent =
+        sensor === "t1" ? "Sensor 1 (T1)" : "Sensor 2 (T2)";
+      document.getElementById("tempValue").textContent = "--";
+      document.getElementById("updatedAt").textContent = "Loading...";
+      document.getElementById("sensorPanel").classList.add("visible");
+
+      // Start polling
+      clearInterval(pollInterval);
+      fetchTemp();
+      pollInterval = setInterval(fetchTemp, 3000); // every 3 seconds
+    }
+
+    async function fetchTemp() {
+      if (!currentSensor) return;
+      try {
+        const res  = await fetch(`${API_BASE}/data/${currentSensor}`);
+        const data = await res.json();
+
+        if (data.temp === null) {
+          document.getElementById("tempValue").textContent = "--";
+          document.getElementById("updatedAt").textContent = "No data yet";
+          document.getElementById("statusDot").className = "status-dot stale";
+          return;
+        }
+
+        document.getElementById("tempValue").textContent =
+          parseFloat(data.temp).toFixed(1);
+
+        // Check freshness (stale if > 15 seconds old)
+        const age = (Date.now() - new Date(data.updatedAt)) / 1000;
+        const dot = document.getElementById("statusDot");
+        dot.className = age > 15 ? "status-dot stale" : "status-dot";
+
+        document.getElementById("updatedAt").textContent =
+          `Last update: ${new Date(data.updatedAt).toLocaleTimeString()}`;
+
+      } catch (err) {
+        document.getElementById("updatedAt").textContent = "Connection error";
+        document.getElementById("statusDot").className = "status-dot stale";
+      }
+    }
+
+    function goBack() {
+      clearInterval(pollInterval);
+      currentSensor = null;
+      document.getElementById("sensorPanel").classList.remove("visible");
+      document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
+    }
+  </script>
+</body>
+</html>
