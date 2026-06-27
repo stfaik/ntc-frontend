@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ESP32 Temperature Monitor</title>
+  <title>ESP32 Monitor</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: 'Segoe UI', sans-serif;
       background: #0f1117;
@@ -14,132 +15,317 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 40px 20px;
+      padding: 30px 20px;
     }
-    h1 { font-size: 1.6rem; color: #90caf9; margin-bottom: 8px; letter-spacing: 1px; }
-    .subtitle { font-size: 0.85rem; color: #666; margin-bottom: 40px; }
-    .menu { display: flex; gap: 20px; margin-bottom: 40px; flex-wrap: wrap; justify-content: center; }
-    .menu-btn {
-      background: #1e2130; border: 2px solid #2a2f45; color: #90caf9;
-      padding: 18px 40px; font-size: 1.1rem; border-radius: 12px;
-      cursor: pointer; transition: all 0.2s; min-width: 160px;
+
+    h1 {
+      font-size: 1.5rem;
+      color: #90caf9;
+      margin-bottom: 4px;
+      letter-spacing: 1px;
     }
-    .menu-btn:hover  { background: #252840; border-color: #90caf9; }
-    .menu-btn.active { background: #1a3a5c; border-color: #42a5f5; color: #fff; }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: #555;
+      margin-bottom: 30px;
+    }
+
+    /* ---- Main menu cards ---- */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 30px;
+    }
+
+    .menu-card {
+      background: #1e2130;
+      border: 2px solid #2a2f45;
+      border-radius: 14px;
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .menu-card:hover  { border-color: #90caf9; background: #252840; }
+    .menu-card.active { border-color: #42a5f5; background: #1a3a5c; }
+
+    .menu-card .icon  { font-size: 2rem; margin-bottom: 8px; }
+    .menu-card .label { font-size: 0.85rem; color: #888; margin-bottom: 6px; }
+    .menu-card .value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #42a5f5;
+    }
+    .menu-card .unit  { font-size: 1rem; color: #666; margin-left: 2px; }
+    .menu-card .age   { font-size: 0.7rem; color: #444; margin-top: 6px; }
+
+    /* Color per sensor */
+    .card-t1      { border-color: #2a2f45; }
+    .card-t1.active, .card-t1:hover { border-color: #ef5350; }
+    .card-t1 .value { color: #ef5350; }
+
+    .card-t2      { border-color: #2a2f45; }
+    .card-t2.active, .card-t2:hover { border-color: #ff7043; }
+    .card-t2 .value { color: #ff7043; }
+
+    .card-voltage { border-color: #2a2f45; }
+    .card-voltage.active, .card-voltage:hover { border-color: #66bb6a; }
+    .card-voltage .value { color: #66bb6a; }
+
+    .card-current { border-color: #2a2f45; }
+    .card-current.active, .card-current:hover { border-color: #ffa726; }
+    .card-current .value { color: #ffa726; }
+
+    /* ---- Detail panel ---- */
     .panel {
-      display: none; flex-direction: column; align-items: center;
-      background: #1e2130; border: 1px solid #2a2f45; border-radius: 16px;
-      padding: 40px 60px; min-width: 320px; animation: fadeIn 0.3s ease;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      background: #1e2130;
+      border: 1px solid #2a2f45;
+      border-radius: 16px;
+      padding: 36px 50px;
+      min-width: 320px;
+      width: 100%;
+      max-width: 500px;
+      animation: fadeIn 0.25s ease;
     }
+
     .panel.visible { display: flex; }
+
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(8px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    .panel-title { font-size: 1rem; color: #888; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
-    .temp-value  { font-size: 5rem; font-weight: 700; color: #42a5f5; line-height: 1; }
-    .temp-unit   { font-size: 2rem; color: #888; margin-left: 4px; }
-    .updated-at  { margin-top: 20px; font-size: 0.78rem; color: #555; }
-    .status-dot  {
-      display: inline-block; width: 8px; height: 8px;
-      border-radius: 50%; margin-right: 6px; background: #4caf50;
+
+    .panel-icon    { font-size: 2.5rem; margin-bottom: 10px; }
+    .panel-label   { font-size: 0.9rem; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
+    .panel-value   { font-size: 5rem; font-weight: 700; line-height: 1; }
+    .panel-unit    { font-size: 2rem; color: #888; margin-left: 4px; }
+
+    .panel-extra {
+      margin-top: 20px;
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      margin-top: 16px;
+      font-size: 0.78rem;
+      color: #555;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      background: #4caf50;
       animation: pulse 2s infinite;
     }
-    .status-dot.stale { background: #f44336; animation: none; }
+    .dot.stale { background: #f44336; animation: none; }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50%       { opacity: 0.3; }
     }
+
     .back-btn {
-      margin-top: 30px; background: transparent; border: 1px solid #444;
-      color: #888; padding: 8px 24px; border-radius: 8px;
-      cursor: pointer; font-size: 0.85rem; transition: all 0.2s;
+      margin-top: 28px;
+      background: transparent;
+      border: 1px solid #333;
+      color: #777;
+      padding: 8px 28px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
     }
     .back-btn:hover { border-color: #90caf9; color: #90caf9; }
-    .debug { font-size: 0.7rem; color: #444; margin-top: 10px; }
+
+    /* Connection status bar */
+    .status-bar {
+      font-size: 0.75rem;
+      color: #444;
+      margin-bottom: 20px;
+    }
+    .status-bar span { color: #4caf50; }
+    .status-bar span.err { color: #f44336; }
   </style>
 </head>
 <body>
 
-  <h1>⚙ ESP32 Temperature Monitor</h1>
-  <p class="subtitle">Real-time NTC sensor readings</p>
+  <h1>⚙ ESP32 System Monitor</h1>
+  <p class="subtitle">Live sensor dashboard — updates every 3s</p>
+  <div class="status-bar">Backend: <span id="connStatus">connecting...</span></div>
 
-  <div class="menu" id="mainMenu">
-    <button class="menu-btn" onclick="showSensor('t1', this)">🌡 Sensor 1 (T1)</button>
-    <button class="menu-btn" onclick="showSensor('t2', this)">🌡 Sensor 2 (T2)</button>
+  <!-- 2×2 Menu Grid -->
+  <div class="menu-grid" id="menuGrid">
+
+    <div class="menu-card card-t1" onclick="openPanel('t1', this)">
+      <div class="icon">🌡</div>
+      <div class="label">Sensor 1 Temp</div>
+      <div><span class="value" id="card-t1">--</span><span class="unit">°C</span></div>
+      <div class="age" id="age-t1">No data</div>
+    </div>
+
+    <div class="menu-card card-t2" onclick="openPanel('t2', this)">
+      <div class="icon">🌡</div>
+      <div class="label">Sensor 2 Temp</div>
+      <div><span class="value" id="card-t2">--</span><span class="unit">°C</span></div>
+      <div class="age" id="age-t2">No data</div>
+    </div>
+
+    <div class="menu-card card-voltage" onclick="openPanel('voltage', this)">
+      <div class="icon">⚡</div>
+      <div class="label">Buck Output</div>
+      <div><span class="value" id="card-voltage">--</span><span class="unit">V</span></div>
+      <div class="age" id="age-voltage">No data</div>
+    </div>
+
+    <div class="menu-card card-current" onclick="openPanel('current', this)">
+      <div class="icon">🔌</div>
+      <div class="label">Current</div>
+      <div><span class="value" id="card-current">--</span><span class="unit">A</span></div>
+      <div class="age" id="age-current">No data</div>
+    </div>
+
   </div>
 
-  <div class="panel" id="sensorPanel">
-    <div class="panel-title" id="panelTitle">Sensor 1 (T1)</div>
+  <!-- Detail Panel -->
+  <div class="panel" id="detailPanel">
+    <div class="panel-icon"  id="panelIcon">🌡</div>
+    <div class="panel-label" id="panelLabel">SENSOR 1</div>
     <div>
-      <span class="temp-value" id="tempValue">--</span>
-      <span class="temp-unit">°C</span>
+      <span class="panel-value" id="panelValue" style="color:#42a5f5">--</span>
+      <span class="panel-unit"  id="panelUnit">°C</span>
     </div>
-    <div class="updated-at">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="updatedAt">Waiting for data...</span>
+    <div class="panel-extra" id="panelExtra"></div>
+    <div class="status-row">
+      <div class="dot" id="panelDot"></div>
+      <span id="panelTime">Waiting...</span>
     </div>
-    <div class="debug" id="debugMsg"></div>
-    <button class="back-btn" onclick="goBack()">← Back to Menu</button>
+    <button class="back-btn" onclick="closePanel()">← Back to Dashboard</button>
   </div>
 
   <script>
     const API_BASE = "https://ntc-backend-basr.onrender.com";
 
+    // Sensor config
+    const SENSORS = {
+      t1:      { label: "SENSOR 1 TEMP",   icon: "🌡", unit: "°C", color: "#ef5350", decimals: 1, extra: null },
+      t2:      { label: "SENSOR 2 TEMP",   icon: "🌡", unit: "°C", color: "#ff7043", decimals: 1, extra: null },
+      voltage: { label: "BUCK OUTPUT",     icon: "⚡", unit: "V",  color: "#66bb6a", decimals: 3, extra: "power" },
+      current: { label: "CURRENT SENSOR",  icon: "🔌", unit: "A",  color: "#ffa726", decimals: 3, extra: "power" }
+    };
+
     let currentSensor = null;
     let pollInterval  = null;
+    let allData       = {};
 
-    function showSensor(sensor, btn) {
-      document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentSensor = sensor;
-      document.getElementById("panelTitle").textContent =
-        sensor === "t1" ? "Sensor 1 (T1)" : "Sensor 2 (T2)";
-      document.getElementById("tempValue").textContent = "--";
-      document.getElementById("updatedAt").textContent = "Loading...";
-      document.getElementById("debugMsg").textContent  = "";
-      document.getElementById("sensorPanel").classList.add("visible");
-      clearInterval(pollInterval);
-      fetchTemp();
-      pollInterval = setInterval(fetchTemp, 3000);
-    }
-
-    async function fetchTemp() {
-      if (!currentSensor) return;
-      const url = `${API_BASE}/data/${currentSensor}`;
-      document.getElementById("debugMsg").textContent = "Fetching: " + url;
+    // ---- Fetch ALL data at once (efficient) ----
+    async function fetchAll() {
       try {
-        const res  = await fetch(url);
-        const data = await res.json();
-        document.getElementById("debugMsg").textContent = "OK: " + JSON.stringify(data);
+        const res  = await fetch(`${API_BASE}/data`);
+        allData    = await res.json();
 
-        if (data.temp === null || data.temp === undefined) {
-          document.getElementById("tempValue").textContent = "--";
-          document.getElementById("updatedAt").textContent = "No data yet";
-          document.getElementById("statusDot").className = "status-dot stale";
-          return;
-        }
+        document.getElementById("connStatus").textContent = "connected ✓";
+        document.getElementById("connStatus").className   = "";
 
-        document.getElementById("tempValue").textContent = parseFloat(data.temp).toFixed(1);
+        // Update all cards
+        ["t1", "t2", "voltage", "current"].forEach(key => {
+          const d = allData[key];
+          if (!d || d.value === null) return;
 
-        const age = (Date.now() - new Date(data.updatedAt)) / 1000;
-        document.getElementById("statusDot").className = age > 15 ? "status-dot stale" : "status-dot";
-        document.getElementById("updatedAt").textContent =
-          "Last update: " + new Date(data.updatedAt).toLocaleTimeString();
+          const cfg = SENSORS[key];
+          document.getElementById(`card-${key}`).textContent =
+            parseFloat(d.value).toFixed(cfg.decimals);
+
+          const age = (Date.now() - new Date(d.updatedAt)) / 1000;
+          document.getElementById(`age-${key}`).textContent =
+            age < 60
+              ? `${Math.round(age)}s ago`
+              : `${Math.round(age/60)}m ago`;
+        });
+
+        // If detail panel is open, refresh it too
+        if (currentSensor) updatePanel();
 
       } catch (err) {
-        document.getElementById("debugMsg").textContent = "ERROR: " + err.message;
-        document.getElementById("updatedAt").textContent = "Connection error";
-        document.getElementById("statusDot").className = "status-dot stale";
+        document.getElementById("connStatus").textContent = "disconnected ✗";
+        document.getElementById("connStatus").className   = "err";
       }
     }
 
-    function goBack() {
-      clearInterval(pollInterval);
-      currentSensor = null;
-      document.getElementById("sensorPanel").classList.remove("visible");
-      document.querySelectorAll(".menu-btn").forEach(b => b.classList.remove("active"));
+    // ---- Update the open detail panel ----
+    function updatePanel() {
+      const d = allData[currentSensor];
+      if (!d || d.value === null) return;
+
+      const cfg = SENSORS[currentSensor];
+      document.getElementById("panelValue").textContent =
+        parseFloat(d.value).toFixed(cfg.decimals);
+
+      // Extra info (power = V × I)
+      if (cfg.extra === "power" && allData.voltage && allData.current) {
+        const v = allData.voltage.value;
+        const i = allData.current.value;
+        if (v !== null && i !== null) {
+          const power = (v * Math.abs(i)).toFixed(2);
+          document.getElementById("panelExtra").innerHTML =
+            `Power: <strong style="color:#fff">${power} W</strong>
+             &nbsp;|&nbsp; V=${parseFloat(v).toFixed(3)}V
+             &nbsp;|&nbsp; I=${parseFloat(i).toFixed(3)}A`;
+        }
+      }
+
+      const age = (Date.now() - new Date(d.updatedAt)) / 1000;
+      const dot = document.getElementById("panelDot");
+      dot.className = age > 15 ? "dot stale" : "dot";
+      document.getElementById("panelTime").textContent =
+        `Last update: ${new Date(d.updatedAt).toLocaleTimeString()}`;
     }
+
+    // ---- Open detail panel ----
+    function openPanel(sensor, card) {
+      currentSensor = sensor;
+      const cfg = SENSORS[sensor];
+
+      // Highlight card
+      document.querySelectorAll(".menu-card").forEach(c => c.classList.remove("active"));
+      card.classList.add("active");
+
+      // Configure panel
+      document.getElementById("panelIcon").textContent  = cfg.icon;
+      document.getElementById("panelLabel").textContent = cfg.label;
+      document.getElementById("panelUnit").textContent  = cfg.unit;
+      document.getElementById("panelValue").style.color = cfg.color;
+      document.getElementById("panelValue").textContent = "--";
+      document.getElementById("panelExtra").textContent = "";
+      document.getElementById("panelTime").textContent  = "Loading...";
+
+      document.getElementById("detailPanel").classList.add("visible");
+      updatePanel(); // immediate update from cached data
+    }
+
+    // ---- Close detail panel ----
+    function closePanel() {
+      currentSensor = null;
+      document.getElementById("detailPanel").classList.remove("visible");
+      document.querySelectorAll(".menu-card").forEach(c => c.classList.remove("active"));
+    }
+
+    // ---- Start polling ----
+    fetchAll();
+    pollInterval = setInterval(fetchAll, 3000);
   </script>
 </body>
 </html>
